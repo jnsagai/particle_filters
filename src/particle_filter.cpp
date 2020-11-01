@@ -95,7 +95,7 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
     std::cerr << "The size of predicted measurements and observations shall be the same!" << std::endl;
     return;
   }
-  
+
   double min_distance = std::numeric_limits<double>::max();
   double calc_distance = 0;
 
@@ -124,6 +124,9 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   and the following is a good resource for the actual equation to implement
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
+
+  
+
 
 }
 
