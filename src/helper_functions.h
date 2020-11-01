@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <random>
+#include <iostream>
 #include "map.h"
 
 // for portability of M_PI (Vis Studio, MinGW, etc.)
@@ -50,6 +51,24 @@ struct LandmarkObs {
 };
 
 /**
+ * Struct representing one particle coordinate
+ */
+struct ParticleCoord {
+  double x;
+  double y;
+  double theta;
+};
+
+/**
+ * Struct representing one particle standard deviation per coordinate
+ */
+struct ParticleDeviation{
+  double std_x;
+  double std_y;
+  double std_theta;
+};
+
+/**
  * Computes the Euclidean distance between two 2D points.
  * @param (x1,y1) x and y coordinates of first point
  * @param (x2,y2) x and y coordinates of second point
@@ -79,31 +98,83 @@ inline double * getError(double gt_x, double gt_y, double gt_theta, double pf_x,
 }
 
 /**
- * Computes the samples for initializing the particles based
- * on the initial estimation and the standard deviation for 
- * each parameter
- * @param (init_x, init_y, init_theta) initial values of x, y and theta
- * @param (std_x, std_y, std_theta) standard deviation for x, y and t
+ * Apply Gaussian Noise to the coordinates
+ * @param input_coord initial values of x, y and theta
+ * @param std_dev standard deviation for x, y and t
  * @output Generated sample for each parameter
  */
-inline double * ComputeSamples(double init_x, double init_y, double init_theta,
-                    double std_x, double std_y, double std_theta) {
+inline ParticleCoord ApplyGaussianNoise(ParticleCoord input_coord, ParticleDeviation std_dev) {
   using std::normal_distribution;
 
-  static double sample[3];
+  ParticleCoord sample;
 
   std::default_random_engine gen;
 
   // Creates a normal (Gaussian) distribution for x, y and theta
-  normal_distribution<double> dist_x(init_x, std_x);
-  normal_distribution<double> dist_y(init_y, std_y);
-  normal_distribution<double> dist_theta(init_theta, std_theta);
+  normal_distribution<double> dist_x(input_coord.x, std_dev.std_x);
+  normal_distribution<double> dist_y(input_coord.y, std_dev.std_y);
+  normal_distribution<double> dist_theta(input_coord.theta, std_dev.std_theta);
 
-  sample[0] = dist_x(gen);      // Sample: x coord
-  sample[1] = dist_y(gen);      // Sample: y coord
-  sample[2] = dist_theta(gen);  // Sample: theta coord
+  sample.x = dist_x(gen);         // Sample: x coord
+  sample.y = dist_y(gen);         // Sample: y coord
+  sample.theta = dist_theta(gen); // Sample: theta coord
 
   return sample;
+}
+
+/**
+ * Update coordinates based on the motion model
+ * @param input_coord initial values of x, y and theta
+ * @param std_dev standard deviation for x, y and t
+ * @output New coordinates after the motion
+ */
+inline ParticleCoord UpdateCoord(ParticleCoord input_coord, ParticleDeviation std_dev,
+                                double delta_t, double velocity, double yaw_rate) {  
+  using std::normal_distribution;
+
+  ParticleCoord new_coord = { 0.0, 0.0, 0.0 };
+  std::default_random_engine gen;
+
+  if ( fabs(yaw_rate) <= 0.00001 && fabs(yaw_rate) >= 0.00001 ) {
+    std::cerr << "Yaw rate value shall not be zero!" << std::endl;
+    return new_coord;
+  }
+
+  new_coord.x = input_coord.x + ( (velocity / yaw_rate) * (sin(input_coord.theta + yaw_rate * delta_t) - sin(input_coord.theta)) );
+  new_coord.y = input_coord.y + ( (velocity / yaw_rate) * (cos(input_coord.theta) - cos(input_coord.theta + yaw_rate * delta_t)) );
+  new_coord.theta = input_coord.theta + yaw_rate * delta_t;
+
+  new_coord = ApplyGaussianNoise(new_coord, std_dev);
+
+  return new_coord;
+}
+
+/**
+ * Calculate the multivariable probability
+ * @param sig_x sigma x
+ * @param sig_y sigma y
+ * @param x_obs x coordinate of the observation
+ * @param y_obs y coordinate of the observation
+ * @param mu_x mean x
+ * @param mu_y mean y
+ * @output Particle weight
+ */
+inline double multiv_prob(double sig_x, double sig_y, double x_obs, double y_obs,
+                   double mu_x, double mu_y) {
+  // calculate normalization term
+  double gauss_norm;
+  gauss_norm = 1 / (2 * M_PI * sig_x * sig_y);
+
+  // calculate exponent
+  double exponent;
+  exponent = (pow(x_obs - mu_x, 2) / (2 * pow(sig_x, 2)))
+               + (pow(y_obs - mu_y, 2) / (2 * pow(sig_y, 2)));
+    
+  // calculate weight using normalization terms and exponent
+  double weight;
+  weight = gauss_norm * exp(-exponent);
+    
+  return weight;
 }
 
 /**

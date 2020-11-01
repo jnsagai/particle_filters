@@ -15,6 +15,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <limits>
 
 #include "helper_functions.h"
 
@@ -30,23 +31,20 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-  if (sizeof(std) != 3 ) {
-    std::cerr << "Number of standard deviation parameters is different than 3" << std::endl;
-    return;
-  }
-
   num_particles = 200;  // TODO: Set the number of particles
 
   Particle temp_particle;
-  double * sample;
+  ParticleCoord sample;
+  ParticleCoord particle_coord = { x, y, theta};
+  ParticleDeviation particle_dev = { std[0], std[1], std[2] };
 
   for (unsigned int i = 0; i < num_particles; ++i) {
     temp_particle.id = i;
-    sample = ComputeSamples(x, y, theta, std[0], std[1], std[2]);
+    sample = ApplyGaussianNoise(particle_coord, particle_dev);
 
-    temp_particle.x = sample[0];
-    temp_particle.y = sample[1];
-    temp_particle.theta = sample[2];
+    temp_particle.x = sample.x;
+    temp_particle.y = sample.y;
+    temp_particle.theta = sample.theta;
     temp_particle.weight = 1;
 
     particles.push_back(temp_particle);
@@ -65,6 +63,21 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
 
+  ParticleCoord coord = { 0.0, 0.0, 0.0 };
+  ParticleCoord new_coord = { 0.0, 0.0, 0.0 };
+  ParticleDeviation dev = {std_pos[0], std_pos[1], std_pos[2]};
+
+  for (unsigned int i = 0; i < num_particles; ++i) {
+    coord.x = particles[i].x;
+    coord.y = particles[i].y;
+    coord.theta = particles[i].theta;
+
+    new_coord = UpdateCoord(coord, dev, delta_t, velocity, yaw_rate);
+
+    particles[i].x = new_coord.x;
+    particles[i].y = new_coord.y;
+    particles[i].theta = new_coord.theta;
+  }
 }
 
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
@@ -78,6 +91,21 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   during the updateWeights phase.
    */
 
+  if (predicted.size() != observations.size()) {
+    std::cerr << "The size of predicted measurements and observations shall be the same!" << std::endl;
+    return;
+  }
+  
+  double min_distance = std::numeric_limits<double>::max();
+  double calc_distance = 0;
+
+  for (unsigned int i = 0; i < predicted.size(); ++i) {
+    calc_distance = dist(predicted[i].x, predicted[i].y, observations[i].x, observations[i].x);
+    if ( calc_distance < min_distance) {
+      min_distance = calc_distance;
+      predicted[i].id = observations[i].id;
+    }
+  }
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
