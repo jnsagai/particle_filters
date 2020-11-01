@@ -30,8 +30,29 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-  num_particles = 0;  // TODO: Set the number of particles
+  if (sizeof(std) != 3 ) {
+    std::cerr << "Number of standard deviation parameters is different than 3" << std::endl;
+    return;
+  }
 
+  num_particles = 200;  // TODO: Set the number of particles
+
+  Particle temp_particle;
+  double * sample;
+
+  for (unsigned int i = 0; i < num_particles; ++i) {
+    temp_particle.id = i;
+    sample = ComputeSamples(x, y, theta, std[0], std[1], std[2]);
+
+    temp_particle.x = sample[0];
+    temp_particle.y = sample[1];
+    temp_particle.theta = sample[2];
+    temp_particle.weight = 1;
+
+    particles.push_back(temp_particle);
+  }
+
+  is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], 

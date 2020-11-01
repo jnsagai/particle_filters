@@ -14,6 +14,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <random>
 #include "map.h"
 
 // for portability of M_PI (Vis Studio, MinGW, etc.)
@@ -75,6 +76,34 @@ inline double * getError(double gt_x, double gt_y, double gt_theta, double pf_x,
     error[2] = 2.0 * M_PI - error[2];
   }
   return error;
+}
+
+/**
+ * Computes the samples for initializing the particles based
+ * on the initial estimation and the standard deviation for 
+ * each parameter
+ * @param (init_x, init_y, init_theta) initial values of x, y and theta
+ * @param (std_x, std_y, std_theta) standard deviation for x, y and t
+ * @output Generated sample for each parameter
+ */
+inline double * ComputeSamples(double init_x, double init_y, double init_theta,
+                    double std_x, double std_y, double std_theta) {
+  using std::normal_distribution;
+
+  static double sample[3];
+
+  std::default_random_engine gen;
+
+  // Creates a normal (Gaussian) distribution for x, y and theta
+  normal_distribution<double> dist_x(init_x, std_x);
+  normal_distribution<double> dist_y(init_y, std_y);
+  normal_distribution<double> dist_theta(init_theta, std_theta);
+
+  sample[0] = dist_x(gen);      // Sample: x coord
+  sample[1] = dist_y(gen);      // Sample: y coord
+  sample[2] = dist_theta(gen);  // Sample: theta coord
+
+  return sample;
 }
 
 /**
