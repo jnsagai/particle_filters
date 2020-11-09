@@ -22,6 +22,7 @@
 using std::string;
 using std::vector;
 
+
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
   /**
    * TODO: Set the number of particles. Initialize all particles to 
@@ -45,7 +46,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     temp_particle.x = sample.x;
     temp_particle.y = sample.y;
     temp_particle.theta = sample.theta;
-    temp_particle.weight = 1;
+    temp_particle.weight = 1.0;
 
     particles.push_back(temp_particle);
   }
@@ -91,19 +92,17 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   during the updateWeights phase.
    */
 
-  if (predicted.size() != observations.size()) {
-    std::cerr << "The size of predicted measurements and observations shall be the same!" << std::endl;
-    return;
-  }
+  for ( unsigned int i = 0; i < observations.size(); ++i) {
+ 
+    double min_distance = std::numeric_limits<double>::max();
+    double calc_distance = 0;
 
-  double min_distance = std::numeric_limits<double>::max();
-  double calc_distance = 0;
-
-  for (unsigned int i = 0; i < predicted.size(); ++i) {
-    calc_distance = dist(predicted[i].x, predicted[i].y, observations[i].x, observations[i].x);
-    if ( calc_distance < min_distance) {
-      min_distance = calc_distance;
-      predicted[i].id = observations[i].id;
+    for (unsigned int j = 0; j < predicted.size(); ++j) {
+      calc_distance = dist(observations[i].x, observations[i].y, predicted[j].x, predicted[j].x);
+      if ( calc_distance < min_distance) {
+        min_distance = calc_distance;
+        observations[i].id = predicted[i].id;
+      }
     }
   }
 }
@@ -125,9 +124,64 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
 
-  
+  for (unsigned int i = 0; i < particles.size(); ++i) {
 
+    particles[i].weight = 1;
 
+    double p_x = particles[i].x;
+    double p_y = particles[i].y;
+    double p_theta = particles[i].theta;
+
+    vector<LandmarkObs> predictions;
+
+    for (unsigned int j = 0; j < map_landmarks.landmark_list.size(); ++j) {
+
+      LandmarkObs map_lm = { map_landmarks.landmark_list[j].id_i, 
+                            (double)map_landmarks.landmark_list[j].x_f,
+                            (double)map_landmarks.landmark_list[j].y_f };
+
+      //Check whether the distance is less or equal to the sensor range
+      if ( fabs( dist(p_x, p_y, map_lm.x, map_lm.y) )  <= sensor_range ) {
+
+        predictions.push_back(LandmarkObs{ map_lm });
+    }
+
+  }
+
+    vector<LandmarkObs> trans_observations;
+    LandmarkObs trans_obs;
+
+    for (unsigned int j = 0; j < observations.size(); ++j) {
+      // Transform the observation from Vehicle coordinate to Map cooordinate
+      trans_obs.x = p_x + ( ( cos(p_theta) * observations[j].x ) - ( sin(p_theta) * observations[j].y ) );
+      trans_obs.y = p_y + ( ( sin(p_theta) * observations[j].x ) - ( cos(p_theta) * observations[j].y ) );
+      trans_obs.id = observations[j].id;
+      trans_observations.push_back(trans_obs);      
+    }
+
+    dataAssociation(predictions, trans_observations);
+
+    for ( unsigned int j = 0; j < trans_observations.size(); ++j) {
+
+      double obs_x, obs_y, pred_x, pred_y, std_x, std_y;
+      obs_x = trans_observations[j].x;
+      obs_y = trans_observations[j].y;
+
+      for ( unsigned int k; k < predictions.size(); ++k) {
+        if (predictions[k].id == trans_observations[j].id) {
+          pred_x = predictions[k].x;
+          pred_y = predictions[k].y;
+        }
+      }
+
+      std_x = std_landmark[0];
+      std_y = std_landmark[1];
+
+      double obs_weight = multiv_prob(std_x, std_y, obs_x, obs_y, pred_x, pred_y);
+
+      particles[i].weight *= obs_weight;
+    }
+  }
 }
 
 void ParticleFilter::resample() {
@@ -137,6 +191,35 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
+
+  using std::uniform_int_distribution;
+  using std::uniform_real_distribution;
+  std::default_random_engine gen;
+
+  vector<Particle> resampled_particles;
+  vector<double> curr_weights;
+
+  for (unsigned int i = 0; i < particles.size(); ++i) { curr_weights.push_back(particles[i].weight); }
+
+  uniform_int_distribution<int> uni_int_dist(0, particles.size() - 1);
+  auto index = uni_int_dist(gen);
+
+  double max_weight = *std::max_element(curr_weights.begin(), curr_weights.end());
+
+  uniform_real_distribution<double> uni_real_dist(0.0, max_weight);
+
+  double beta = 0.0;
+
+  for (unsigned int i = 0; i < particles.size(); i++) {
+    beta += uni_real_dist(gen) * 2.0;
+    while (beta > curr_weights[index]) {
+      beta -= curr_weights[index];
+      index = (index + 1) % num_particles;
+    }
+    resampled_particles.push_back(particles[index]);
+  }
+
+  particles = resampled_particles;
 
 }
 
