@@ -98,58 +98,6 @@ inline double * getError(double gt_x, double gt_y, double gt_theta, double pf_x,
 }
 
 /**
- * Apply Gaussian Noise to the coordinates
- * @param input_coord initial values of x, y and theta
- * @param std_dev standard deviation for x, y and t
- * @output Generated sample for each parameter
- */
-inline ParticleCoord ApplyGaussianNoise(ParticleCoord input_coord, ParticleDeviation std_dev) {
-  using std::normal_distribution;
-
-  ParticleCoord sample;
-
-  std::default_random_engine gen;
-
-  // Creates a normal (Gaussian) distribution for x, y and theta
-  normal_distribution<double> dist_x(input_coord.x, std_dev.std_x);
-  normal_distribution<double> dist_y(input_coord.y, std_dev.std_y);
-  normal_distribution<double> dist_theta(input_coord.theta, std_dev.std_theta);
-
-  sample.x = dist_x(gen);         // Sample: x coord
-  sample.y = dist_y(gen);         // Sample: y coord
-  sample.theta = dist_theta(gen); // Sample: theta coord
-
-  return sample;
-}
-
-/**
- * Update coordinates based on the motion model
- * @param input_coord initial values of x, y and theta
- * @param std_dev standard deviation for x, y and t
- * @output New coordinates after the motion
- */
-inline ParticleCoord UpdateCoord(ParticleCoord input_coord, ParticleDeviation std_dev,
-                                double delta_t, double velocity, double yaw_rate) {  
-  using std::normal_distribution;
-
-  ParticleCoord new_coord = { 0.0, 0.0, 0.0 };
-  std::default_random_engine gen;
-
-  if ( fabs(yaw_rate) <= 0.00001 && fabs(yaw_rate) >= 0.00001 ) {
-    std::cerr << "Yaw rate value shall not be zero!" << std::endl;
-    return new_coord;
-  }
-
-  new_coord.x = input_coord.x + ( (velocity / yaw_rate) * (sin(input_coord.theta + yaw_rate * delta_t) - sin(input_coord.theta)) );
-  new_coord.y = input_coord.y + ( (velocity / yaw_rate) * (cos(input_coord.theta) - cos(input_coord.theta + yaw_rate * delta_t)) );
-  new_coord.theta = input_coord.theta + yaw_rate * delta_t;
-
-  new_coord = ApplyGaussianNoise(new_coord, std_dev);
-
-  return new_coord;
-}
-
-/**
  * Calculate the multivariable probability
  * @param sig_x sigma x
  * @param sig_y sigma y
@@ -173,7 +121,10 @@ inline double multiv_prob(double sig_x, double sig_y, double x_obs, double y_obs
   // calculate weight using normalization terms and exponent
   double weight;
   weight = gauss_norm * exp(-exponent);
-    
+  
+  //DEBUG
+  //std::cout << "gauss_norm " << gauss_norm << " exponent" << exponent << " weight" << weight << std::endl;
+
   return weight;
 }
 
