@@ -122,9 +122,6 @@ inline double multiv_prob(double sig_x, double sig_y, double x_obs, double y_obs
   double weight;
   weight = gauss_norm * exp(-exponent);
   
-  //DEBUG
-  //std::cout << "gauss_norm " << gauss_norm << " exponent" << exponent << " weight" << weight << std::endl;
-
   return weight;
 }
 
